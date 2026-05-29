@@ -1,0 +1,24 @@
+# 编译输出
+account_gen.exe
+account_gen.exe~
+*.exe~
+*.test
+
+# 输出目录（账号数据）
+output/
+
+# 运行时自动生成的文件
+unique_names.txt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db

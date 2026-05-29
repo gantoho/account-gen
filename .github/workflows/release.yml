@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            label: linux-amd64
+            ext: ""
+
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            label: darwin-amd64
+            ext: ""
+
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            label: darwin-arm64
+            ext: ""
+
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            label: windows-amd64
+            ext: ".exe"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+
+      - name: Build
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o "account_gen${{ matrix.ext }}" .
+
+      - name: Package (Unix)
+        if: matrix.goos != 'windows'
+        run: |
+          mkdir -p release/
+          cp "account_gen${{ matrix.ext }}" release/
+          cp README.md release/
+          cd release
+          tar czf "../account_gen-${{ matrix.label }}.tar.gz" ./*
+          cd ..
+
+      - name: Package (Windows)
+        if: matrix.goos == 'windows'
+        run: |
+          New-Item -ItemType Directory -Force -Path release/
+          Copy-Item "account_gen${{ matrix.ext }}" release/
+          Copy-Item README.md release/
+          Compress-Archive -Path "release/*" -DestinationPath "account_gen-${{ matrix.label }}.zip" -Force
+
+      - name: Checksum
+        run: |
+          if ("${{ matrix.goos }}" -eq "windows") {
+            $file = "account_gen-${{ matrix.label }}.zip"
+          } else {
+            $file = "account_gen-${{ matrix.label }}.tar.gz"
+          }
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+          "$hash  $file" | Out-File -FilePath checksums.txt -Append -Encoding ASCII
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: account_gen-${{ matrix.label }}
+          path: |
+            account_gen-${{ matrix.label }}.tar.gz
+            account_gen-${{ matrix.label }}.zip
+          if-no-files-found: warn
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare Release Assets
+        run: |
+          mkdir -p assets/
+          find artifacts/ -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} assets/ \;
+
+      - name: Generate Checksums
+        run: |
+          cd assets/
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref }}
+          body: |
+            ## 账号生成器 ${{ github.ref_name }}
+
+            ### 下载说明
+
+            | 平台 | 架构 | 文件 |
+            |------|------|------|
+            | Windows | x86_64 | `account_gen-windows-amd64.zip` |
+            | macOS | Intel | `account_gen-darwin-amd64.tar.gz` |
+            | macOS | Apple Silicon | `account_gen-darwin-arm64.tar.gz` |
+            | Linux | x86_64 | `account_gen-linux-amd64.tar.gz` |
+
+            ### 使用方法
+
+            ```bash
+            # 解压后直接运行
+            ./account_gen
+
+            # 指定端口
+            ./account_gen --port 9090
+
+            # 仅命令行模式
+            ./account_gen --cli-only
+            ```
+
+            ---
+            > 所有安装包均内嵌 Web UI，解压即用，无需额外依赖。
+          files: assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: false
