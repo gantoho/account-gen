@@ -238,15 +238,17 @@ curl http://localhost:8080/api/history
 
 ```
 account-generator/
-├── main.go              # 主程序（CLI + Web UI + API，含嵌入式 HTML）
-├── go.mod               # Go 模块定义
-├── go.sum               # 依赖校验文件（使用标准库时无需）
-├── README.md            # 本文档
-├── .gitignore           # Git 忽略规则
-├── output/              # 账号输出目录（自动创建）
-│   ├── 20260529.txt     # 按日期归集的账号文本
-│   └── latest.json      # 最新一条账号 JSON
-└── unique_names.txt     # 已使用的随机字母库（自动创建）
+├── main.go                    # 主程序（CLI + Web UI + API，含嵌入式 HTML）
+├── go.mod                     # Go 模块定义
+├── go.sum                     # 依赖校验文件（使用标准库时无需）
+├── README.md                  # 本文档
+├── .gitignore                 # Git 忽略规则
+├── .github/workflows/         # GitHub Actions 工作流
+│   └── release.yml            # 自动构建 + 发布 Release
+├── output/                    # 账号输出目录（自动创建）
+│   ├── 20260529.txt           # 按日期归集的账号文本
+│   └── latest.json            # 最新一条账号 JSON
+└── unique_names.txt           # 已使用的随机字母库（自动创建）
 ```
 
 > `output/` 和 `unique_names.txt` 由程序自动生成，无需手动创建。
@@ -297,6 +299,52 @@ go vet ./...
 # 运行（按 Ctrl+C 停止）
 ./account_gen
 ```
+
+---
+
+## 自动化发布
+
+项目使用 GitHub Actions 自动构建跨平台安装包并发布 Release。
+
+### 触发方式
+
+| 操作 | 构建产物 | 创建 Release |
+|------|----------|-------------|
+| 推送代码到 `main` 分支 | ✅ 4 平台并行构建 | ❌ |
+| 推送 tag `v1.0.0` 等 | ✅ 4 平台并行构建 | ✅ 自动发布 |
+| GitHub UI 手动触发 | ✅ 4 平台并行构建 | ❌ |
+
+### 发布流程
+
+```bash
+# 日常开发 — 推 main 分支，自动构建验证
+git add .
+git commit -m "xxx"
+git push origin main
+# → Actions 构建 4 个平台产物，检查编译是否通过
+
+# 发布新版 — 打 tag 推送
+git tag v1.0.0
+git push origin v1.0.0
+# → Actions 构建 + 自动创建 GitHub Release
+```
+
+### 构建产物
+
+每次构建自动产出以下 4 个安装包：
+
+| 平台 | 架构 | 格式 |
+|------|------|------|
+| Windows | x86_64 | `account_gen-windows-amd64.zip` |
+| macOS | Intel | `account_gen-darwin-amd64.tar.gz` |
+| macOS | Apple Silicon | `account_gen-darwin-arm64.tar.gz` |
+| Linux | x86_64 | `account_gen-linux-amd64.tar.gz` |
+
+所有安装包均包含可执行文件 + README，解压即用。Release 页面同时提供 SHA256 校验和文件 `checksums.txt`，可用于下载后校验文件完整性。
+
+### 手动触发
+
+在 GitHub 仓库页面 **Actions → Release → Run workflow** 可手动启动一次构建，用于验证工作流配置是否正确。
 
 ---
 
