@@ -35,7 +35,7 @@ jobs:
             label: linux-amd64
             ext: ""
 
-          - os: windows-2025
+          - os: windows-2025-vs2026
             goos: windows
             goarch: amd64
             label: windows-amd64
@@ -181,10 +181,10 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('手动构建 #{0}', github.run_number) }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref || format('manual-build-{0}', github.run_id) }}
           body: |
-            ## 账号生成器 ${{ github.ref_name }}
+            ## 账号生成器 ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('手动构建 #{0}', github.run_number) }}
 
             ### 下载说明
 
