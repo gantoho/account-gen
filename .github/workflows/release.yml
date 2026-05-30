@@ -45,6 +45,7 @@ jobs:
           cache: false
 
       - name: Build
+        shell: bash
         run: |
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o "account_gen${{ matrix.ext }}" .
 
