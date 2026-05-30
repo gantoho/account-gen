@@ -96,6 +96,7 @@ func generateContent() (string, map[string]string, error) {
 	}
 
 	email := fmt.Sprintf("%s%s%s", userPre, numStr, emailSuffix)
+	emailUsername := strings.SplitN(email, "@", 2)[0]
 	username := fmt.Sprintf("%s%s", userPre, randomStr)
 	password := fmt.Sprintf("%s%s", passwordPre, timeStr)
 	createdAt := now.Format("2006-01-02 15:04:05")
@@ -103,6 +104,7 @@ func generateContent() (string, map[string]string, error) {
 	content := fmt.Sprintf(`姓：%s
 名：%s
 邮箱：%s
+邮箱用户名：%s
 用户名：%s
 密码：%s
 手机号：%s
@@ -111,27 +113,29 @@ func generateContent() (string, map[string]string, error) {
 		userPre,
 		userPre,
 		email,
+		emailUsername,
 		username,
 		password,
 		numStr,
 	)
 
-	displayText := fmt.Sprintf("姓：%s\n名：%s\n邮箱：%s\n用户名：%s\n密码：%s\n手机号：%s",
-		userPre, userPre, email, username, password, numStr)
+	displayText := fmt.Sprintf("姓：%s\n名：%s\n邮箱：%s\n邮箱用户名：%s\n用户名：%s\n密码：%s\n手机号：%s",
+		userPre, userPre, email, emailUsername, username, password, numStr)
 
 	account := map[string]string{
-		"name":          userPre,
-		"firstName":     userPre,
-		"first_name":    userPre,
-		"lastName":      userPre,
-		"last_name":     userPre,
-		"email":         email,
-		"username":      username,
-		"password":      password,
-		"phone":         numStr,
-		"mobile_number": numStr,
-		"created_at":    createdAt,
-		"display":       displayText,
+		"name":           userPre,
+		"firstName":      userPre,
+		"first_name":     userPre,
+		"lastName":       userPre,
+		"last_name":      userPre,
+		"email":          email,
+		"email_username": emailUsername,
+		"username":       username,
+		"password":       password,
+		"phone":          numStr,
+		"mobile_number":  numStr,
+		"created_at":     createdAt,
+		"display":        displayText,
 	}
 
 	return content, account, nil
@@ -206,12 +210,10 @@ func main() {
 		return
 	}
 
-	jsonDir := dir
-
 	http.HandleFunc("/api/latest", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		jsonPath := filepath.Join(jsonDir, jsonFile)
+		jsonPath := filepath.Join(dir, jsonFile)
 		data, err := os.ReadFile(jsonPath)
 		if err != nil {
 			http.Error(w, `{"error":"no data"}`, http.StatusNotFound)
@@ -254,17 +256,32 @@ func main() {
 
 		switch r.Method {
 		case "GET":
-			json.NewEncoder(w).Encode(map[string]int{"rand_len": randLen})
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"rand_len":   randLen,
+				"output_dir": dir,
+			})
 		case "POST":
-			var body map[string]int
+			var body map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
 				return
 			}
-			if n, ok := body["rand_len"]; ok && n > 0 {
-				randLen = n
+			if n, ok := body["rand_len"]; ok {
+				if v, ok := n.(float64); ok && v > 0 {
+					randLen = int(v)
+				}
 			}
-			json.NewEncoder(w).Encode(map[string]int{"rand_len": randLen})
+			if d, ok := body["output_dir"]; ok {
+				if s, ok := d.(string); ok && s != "" {
+					if err := os.MkdirAll(s, 0755); err == nil {
+						dir = s
+					}
+				}
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"rand_len":   randLen,
+				"output_dir": dir,
+			})
 		default:
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
@@ -284,7 +301,7 @@ func main() {
 		currentPort := port
 		for {
 			addr := ":" + currentPort
-			fmt.Printf("> HTTP服务: http://localhost:%s\n", currentPort)
+			fmt.Printf("HTTP服务: http://localhost:%s\n", currentPort)
 			err := http.ListenAndServe(addr, nil)
 			if err != nil {
 				if strings.Contains(err.Error(), "address already in use") || strings.Contains(err.Error(), "Only one usage") {
@@ -404,8 +421,8 @@ var indexHTML = `<!DOCTYPE html>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background: #0f0f1a;
-    color: #e0e0e0;
+    background: #08080f;
+    color: #e2e8f0;
     min-height: 100vh;
     display: flex;
     justify-content: center;
@@ -414,212 +431,277 @@ var indexHTML = `<!DOCTYPE html>
   }
   .container {
     width: 100%;
-    max-width: 560px;
-    background: #1a1a2e;
-    border-radius: 24px;
-    padding: 40px 32px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-    border: 1px solid #2a2a4a;
-  }
-  .header {
-    text-align: center;
-    margin-bottom: 32px;
-  }
-  .header h1 {
-    font-size: 26px;
-    font-weight: 700;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  .header p {
-    color: #888;
-    font-size: 14px;
-    margin-top: 6px;
-  }
-  .generate-area {
-    text-align: center;
-    margin-bottom: 28px;
-  }
-  .btn-generate {
-    width: 100%;
-    padding: 16px;
-    font-size: 18px;
-    font-weight: 600;
-    border: none;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: #fff;
-    cursor: pointer;
-    transition: all 0.25s ease;
-    letter-spacing: 1px;
+    max-width: 540px;
+    background: #12121e;
+    border-radius: 28px;
+    padding: 36px 28px;
+    box-shadow: 0 0 0 1px rgba(99,102,241,0.06), 0 25px 60px rgba(0,0,0,0.7);
     position: relative;
     overflow: hidden;
   }
-  .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(102,126,234,0.4); }
-  .btn-generate:active { transform: translateY(0); }
-  .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(99,102,241,0.25), transparent);
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 28px;
+    position: relative;
+  }
+  .header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: #f1f5f9;
+  }
+  .header p {
+    color: #64748b;
+    font-size: 13px;
+    margin-top: 5px;
+    font-weight: 400;
+  }
+  .generate-area {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .btn-generate {
+    width: 100%;
+    padding: 15px;
+    font-size: 16px;
+    font-weight: 500;
+    border: none;
+    border-radius: 12px;
+    background: #6366f1;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.3px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.25);
+  }
+  .btn-generate:hover { background: #5558e6; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(99,102,241,0.35); }
+  .btn-generate:active { transform: translateY(0); box-shadow: 0 2px 12px rgba(99,102,241,0.2); }
+  .btn-generate:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; transform: none; }
   .btn-generate .spinner {
     display: none;
-    width: 22px; height: 22px;
-    border: 3px solid rgba(255,255,255,0.3);
+    width: 20px; height: 20px;
+    border: 2.5px solid rgba(255,255,255,0.25);
     border-top-color: #fff;
     border-radius: 50%;
-    animation: spin 0.7s linear infinite;
+    animation: spin 0.6s linear infinite;
     margin: 0 auto;
   }
   .btn-generate.loading .spinner { display: block; }
   .btn-generate.loading .btn-text { display: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .count-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     margin-top: 10px;
-    padding: 4px 14px;
-    background: #2a2a4a;
+    padding: 5px 14px;
+    background: rgba(99,102,241,0.08);
     border-radius: 20px;
-    font-size: 13px;
-    color: #aaa;
+    font-size: 12px;
+    color: #818cf8;
+    font-weight: 500;
   }
-  .config-toggle {
-    margin-top: 12px;
-    font-size: 13px;
-    color: #666;
-    cursor: pointer;
-    user-select: none;
-    transition: color 0.2s;
-    display: inline-block;
+  .count-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #6366f1;
+    opacity: 0.6;
   }
-  .config-toggle:hover { color: #667eea; }
   .config-panel {
-    margin-top: 12px;
-    padding: 16px 20px;
-    background: #12122a;
-    border-radius: 12px;
-    border: 1px solid #2a2a4a;
-    display: none;
+    margin-bottom: 16px;
+    padding: 16px 18px;
+    background: #0e0e18;
+    border-radius: 14px;
+    border: 1px solid #1e1e30;
     text-align: left;
   }
-  .config-panel.open { display: block; }
   .config-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
   }
+  .config-row + .config-row { margin-top: 10px; }
   .config-row label {
-    font-size: 13px;
-    color: #888;
+    font-size: 12px;
+    color: #64748b;
     white-space: nowrap;
+    min-width: 72px;
+    font-weight: 500;
   }
-  .config-row input[type="number"] {
-    width: 80px;
-    padding: 6px 10px;
-    background: #1a1a2e;
-    border: 1px solid #3a3a5a;
+  .config-row input[type="number"],
+  .config-row input[type="text"] {
+    padding: 8px 11px;
+    background: #12121e;
+    border: 1px solid #1e1e32;
     border-radius: 8px;
-    color: #e0e0e0;
-    font-size: 14px;
+    color: #e2e8f0;
+    font-size: 13px;
     font-family: "SF Mono", "Consolas", monospace;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .config-row input[type="number"]:focus { border-color: #667eea; }
-  .config-row input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+  .config-row input[type="number"] { width: 72px; }
+  .config-row input[type="text"] { flex: 1; width: auto; }
+  .config-row input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .config-row input[type="number"]::-webkit-inner-spin-button,
+  .config-row input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .config-row input[type="number"] { -moz-appearance: textfield; }
   .config-hint {
+    font-size: 11px;
+    color: #475569;
+    margin-left: -4px;
+  }
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 12px;
-    color: #555;
-    margin-left: auto;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 12px;
   }
-  .config-save-btn {
-    padding: 6px 16px;
-    background: #667eea;
-    border: none;
-    border-radius: 8px;
-    color: #fff;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.2s;
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #1e1e30;
   }
-  .config-save-btn:hover { background: #5a6fd6; }
-  .config-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .info-bar {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 16px;
+    padding: 10px 16px;
+    background: #0e0e18;
+    border-radius: 10px;
+    border: 1px solid #1a1a2e;
+    font-size: 12px;
+  }
+  .info-bar .info-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 1;
+    justify-content: center;
+    padding: 4px 0;
+    border-right: 1px solid #1a1a2e;
+  }
+  .info-bar .info-item:last-child { border-right: none; }
+  .info-bar .info-item .info-label { color: #475569; font-weight: 500; }
+  .info-bar .info-item .info-value { color: #94a3b8; font-family: "SF Mono", "Consolas", monospace; font-size: 11px; }
   .card {
-    background: #12122a;
-    border-radius: 16px;
-    padding: 24px;
-    margin-top: 8px;
-    border: 1px solid #2a2a4a;
-    min-height: 80px;
-    transition: all 0.3s ease;
+    background: #0e0e18;
+    border-radius: 14px;
+    padding: 20px;
+    border: 1px solid #1a1a2e;
+    min-height: 72px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
   }
-  .card.has-data { border-color: #667eea; }
+  .card.has-data { border-color: rgba(99,102,241,0.25); box-shadow: 0 0 0 1px rgba(99,102,241,0.06); }
   .card-empty {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #555;
-    font-size: 14px;
-    min-height: 80px;
+    color: #475569;
+    font-size: 13px;
+    min-height: 72px;
+    gap: 6px;
   }
-  .card-empty .icon { font-size: 32px; margin-bottom: 8px; opacity: 0.4; }
+  .card-empty .icon {
+    width: 32px; height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px dashed #333;
+    border-radius: 50%;
+    font-size: 16px;
+    color: #475569;
+  }
   .field {
     display: flex;
     align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #1e1e3a;
-    font-size: 14px;
+    padding: 7px 0;
+    font-size: 13px;
+    gap: 10px;
   }
-  .field:last-child { border-bottom: none; }
+  .field + .field { border-top: 1px solid #161625; }
   .field-label {
-    width: 72px;
-    color: #888;
+    width: 68px;
+    color: #64748b;
     flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 500;
   }
   .field-value {
     flex: 1;
-    color: #e0e0e0;
+    color: #cbd5e1;
     font-family: "SF Mono", "Fira Code", "Consolas", monospace;
-    font-size: 13px;
+    font-size: 12px;
     word-break: break-all;
     user-select: all;
-    padding-right: 8px;
+    padding: 2px 0;
   }
   .field-copy {
-    background: none;
-    border: 1px solid #3a3a5a;
-    color: #888;
-    padding: 3px 10px;
+    background: transparent;
+    border: 1px solid #1e1e32;
+    color: #64748b;
+    padding: 4px 10px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     flex-shrink: 0;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
-  .field-copy:hover { background: #2a2a4a; color: #fff; border-color: #667eea; }
-  .field-copy.copied { background: #2d6a4f; border-color: #52b788; color: #52b788; }
+  .field-copy:hover { background: #1a1a2e; color: #94a3b8; border-color: #2a2a44; }
+  .field-copy.copied { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.25); color: #4ade80; }
   .footer {
-    margin-top: 20px;
+    margin-top: 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
   }
-  .time-info { font-size: 12px; color: #555; }
+  .footer .time-info {
+    font-size: 11px;
+    color: #475569;
+    font-family: "SF Mono", "Consolas", monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .toast {
     position: fixed;
-    bottom: 30px;
+    bottom: 28px;
     left: 50%;
     transform: translateX(-50%) translateY(80px);
-    background: #2d6a4f;
-    color: #fff;
-    padding: 10px 24px;
+    background: #0e0e18;
+    color: #e2e8f0;
+    padding: 10px 22px;
     border-radius: 10px;
-    font-size: 14px;
+    font-size: 13px;
     opacity: 0;
-    transition: all 0.35s ease;
+    transition: all 0.3s ease;
     pointer-events: none;
+    border: 1px solid #1e1e30;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px);
+    z-index: 100;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  .toast.error { background: #9b2226; }
+  .toast.success { border-color: rgba(34,197,94,0.3); color: #4ade80; }
+  .toast.error { border-color: rgba(239,68,68,0.3); color: #f87171; }
 </style>
 </head>
 <body>
@@ -636,15 +718,29 @@ var indexHTML = `<!DOCTYPE html>
       <span class="spinner"></span>
     </button>
     <div class="count-badge" id="countBadge">已生成 0 条</div>
-    <div class="config-toggle" id="configToggle" onclick="toggleConfig()">设置 ⚙</div>
-    <div class="config-panel" id="configPanel">
-      <div class="config-row">
-        <label for="randLenInput">随机字母长度</label>
-        <input type="number" id="randLenInput" min="1" max="32" value="13">
-        <span class="config-hint">1–32</span>
-        <button class="config-save-btn" id="configSaveBtn" onclick="saveConfig()">应用</button>
-      </div>
+  </div>
+
+  <div class="config-panel" id="configPanel">
+    <div class="config-row">
+      <label for="randLenInput">随机字母长度</label>
+      <input type="number" id="randLenInput" min="1" max="32" value="13" onchange="autoSaveConfig()">
+      <span class="config-hint">1–32</span>
     </div>
+    <div class="config-row">
+      <label for="outputDirInput">输出目录</label>
+      <input type="text" id="outputDirInput" value="./output" onchange="autoSaveConfig()">
+    </div>
+  </div>
+
+  <div class="info-bar" id="infoBar">
+    <span class="info-item">
+      <span class="info-label">随机长度</span>
+      <span class="info-value" id="infoRandLen">13</span>
+    </span>
+    <span class="info-item">
+      <span class="info-label">输出目录</span>
+      <span class="info-value" id="infoOutputDir">./output</span>
+    </span>
   </div>
 
   <div class="card" id="resultCard">
@@ -657,6 +753,7 @@ var indexHTML = `<!DOCTYPE html>
 
   <div class="footer">
     <div class="time-info" id="timeInfo"></div>
+    <div class="time-info" id="filePathInfo"></div>
   </div>
 </div>
 
@@ -667,6 +764,7 @@ const fields = [
   { key: "first_name", label: "姓" },
   { key: "last_name", label: "名" },
   { key: "email", label: "邮箱", copyPrefix: true },
+  { key: "email_username", label: "邮箱用户名" },
   { key: "username", label: "用户名" },
   { key: "password", label: "密码" },
   { key: "phone", label: "手机号" },
@@ -687,6 +785,7 @@ function generate() {
       document.getElementById("countBadge").textContent = "已生成 " + totalCount + " 条";
       renderAccount(data);
       document.getElementById("timeInfo").textContent = data.created_at ? "生成时间: " + data.created_at : "";
+      document.getElementById("filePathInfo").textContent = data.file_path ? "文件: " + data.file_path : "";
     })
     .catch(e => showToast("请求失败: " + e.message, true))
     .finally(() => btn.classList.remove("loading"));
@@ -732,50 +831,63 @@ function showToast(msg, isError) {
   setTimeout(() => t.classList.remove("show"), 2500);
 }
 
-function toggleConfig() {
-  const panel = document.getElementById("configPanel");
-  panel.classList.toggle("open");
+function updateInfoBar() {
+  const lenVal = document.getElementById("randLenInput").value;
+  const dirVal = document.getElementById("outputDirInput").value;
+  document.getElementById("infoRandLen").textContent = lenVal;
+  document.getElementById("infoOutputDir").textContent = dirVal;
 }
 
 function loadConfig() {
+  const saved = localStorage.getItem("account_gen_config");
+  if (saved) {
+    try {
+      const cfg = JSON.parse(saved);
+      if (cfg.rand_len) document.getElementById("randLenInput").value = cfg.rand_len;
+      if (cfg.output_dir) document.getElementById("outputDirInput").value = cfg.output_dir;
+      updateInfoBar();
+      fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: saved
+      }).catch(() => {});
+      return;
+    } catch (e) {}
+  }
   fetch("/api/config")
     .then(r => r.json())
     .then(data => {
-      if (data.rand_len) {
-        document.getElementById("randLenInput").value = data.rand_len;
-      }
+      if (data.rand_len) localStorage.setItem("account_gen_config", JSON.stringify(data));
+      if (data.rand_len) document.getElementById("randLenInput").value = data.rand_len;
+      if (data.output_dir) document.getElementById("outputDirInput").value = data.output_dir;
+      updateInfoBar();
     })
     .catch(() => {});
 }
 
-function saveConfig() {
+function autoSaveConfig() {
   const input = document.getElementById("randLenInput");
   const val = parseInt(input.value);
   if (!val || val < 1 || val > 32) {
     showToast("请输入 1–32 之间的数字", true);
+    input.value = document.getElementById("infoRandLen").textContent;
     return;
   }
-  const btn = document.getElementById("configSaveBtn");
-  btn.disabled = true;
-  btn.textContent = "保存中…";
+  const dirVal = document.getElementById("outputDirInput").value.trim() || "./output";
 
   fetch("/api/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rand_len: val })
+    body: JSON.stringify({ rand_len: val, output_dir: dirVal })
   })
     .then(r => r.json())
     .then(data => {
-      if (data.rand_len) {
-        document.getElementById("randLenInput").value = data.rand_len;
-        showToast("已更新为 " + data.rand_len + " 位随机字母");
-      }
+      localStorage.setItem("account_gen_config", JSON.stringify(data));
+      if (data.rand_len) document.getElementById("randLenInput").value = data.rand_len;
+      if (data.output_dir) document.getElementById("outputDirInput").value = data.output_dir;
+      updateInfoBar();
     })
-    .catch(() => showToast("保存失败", true))
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = "应用";
-    });
+    .catch(() => showToast("保存失败", true));
 }
 
 loadConfig();
