@@ -11,11 +11,13 @@
 - **双模式操作** — 浏览器 Web UI 界面点按生成，或终端命令行按 Enter 生成
 - **唯一用户名** — 随机字母部分基于文件去重，确保每次生成均不重复
 - **自动保存** — 按日期追加到 `YYYYMMDD.txt`，同时输出 `latest.json` 供外部读取
-- **一键复制** — Web UI 每个字段独立复制按钮，点击即复制到剪贴板
+- **一键复制** — Web UI 每个字段独立复制按钮，点击即复制到剪贴板，邮箱默认复制 @ 前缀
+- **配置持久化** — 随机长度、输出目录等设置自动保存到 `localStorage`，刷新页面不丢失
+- **即时应用** — 修改配置后自动生效，无需点击保存/应用按钮
 - **HTTP API** — 内置 REST 接口，可供其他工具或脚本集成调用
 - **跨平台** — 纯 Go 编译，单文件无依赖，Windows / macOS / Linux 均可运行
 - **端口自适应** — 端口被占用时自动累加尝试，无需手动更换
-- **可配置随机长度** — 支持 `--rand-len` 参数调整随机字母位数
+- **可配置随机长度** — 支持 `--rand-len` 参数或 UI 直接调整随机字母位数
 
 ---
 
@@ -69,11 +71,11 @@ account_gen.exe
 ```
 
 在浏览器中：
-1. 点击 **生成账号** 按钮
-2. 账号数据即时显示在卡片中
-3. 点击字段旁的 **复制** 按钮复制单个字段
-4. 顶部徽章显示已生成总数
-5. 底部显示生成时间戳
+1. 点击 **生成账号** 按钮，数据即时显示在结果卡片中
+2. 点击字段旁的 **复制** 按钮复制单个字段（邮箱自动复制 @ 前缀部分）
+3. 顶部徽章显示已生成总数
+4. **设置面板**常驻显示，可直接修改随机长度和输出目录，修改后自动生效
+5. 底部信息栏实时显示当前配置状态，生成后同时展示文件保存路径
 
 ### CLI 模式
 
@@ -146,6 +148,7 @@ account_gen.exe --cli-only --rand-len 8
 姓：testbit
 名：testbit
 邮箱：testbit260529220503@uuf.me
+邮箱用户名：testbit260529220503
 用户名：testbitthzzdx
 密码：testbit#P220503
 手机号：260529220503
@@ -167,6 +170,7 @@ account_gen.exe --cli-only --rand-len 8
   "name": "testbit",
   "password": "testbit#P220503",
   "phone": "260529220503",
+  "placeholder:用户名": "testbit260529220503",
   "username": "testbitthzzdx"
 }
 ```
@@ -185,6 +189,7 @@ account_gen.exe --cli-only --rand-len 8
 |------|------|------|
 | 姓 / 名 | 固定前缀 | `testbit` |
 | 邮箱 | `testbit` + 日期时间数字 + `@uuf.me` | `testbit260529220503@uuf.me` |
+| 邮箱用户名 | 邮箱 @ 前缀部分 | `testbit260529220503` |
 | 用户名 | `testbit` + N 位唯一随机小写字母 | `testbitthzzdx` |
 | 密码 | `testbit#P` + 时分秒 | `testbit#P220503` |
 | 手机号 | 日期 + 时分秒（纯数字） | `260529220503` |
@@ -230,6 +235,31 @@ curl http://localhost:8080/api/history
 }
 ```
 
+### `GET /api/config`
+
+获取当前配置（随机长度和输出目录）。
+
+```bash
+curl http://localhost:8080/api/config
+```
+
+```json
+{
+  "rand_len": 13,
+  "output_dir": "./output"
+}
+```
+
+### `POST /api/config`
+
+更新配置。
+
+```bash
+curl -X POST http://localhost:8080/api/config \
+  -H "Content-Type: application/json" \
+  -d '{"rand_len": 8, "output_dir": "./myoutput"}'
+```
+
 所有 API 均设置了 `Access-Control-Allow-Origin: *`，支持跨域调用。
 
 ---
@@ -238,17 +268,15 @@ curl http://localhost:8080/api/history
 
 ```
 account-generator/
-├── main.go                    # 主程序（CLI + Web UI + API，含嵌入式 HTML）
+├── main.go                    # 主程序（CLI + Web UI + API，含嵌入式 HTML/CSS/JS）
 ├── go.mod                     # Go 模块定义
-├── go.sum                     # 依赖校验文件（使用标准库时无需）
 ├── README.md                  # 本文档
 ├── .gitignore                 # Git 忽略规则
 ├── .github/workflows/         # GitHub Actions 工作流
 │   └── release.yml            # 自动构建 + 发布 Release
-├── output/                    # 账号输出目录（自动创建）
-│   ├── 20260529.txt           # 按日期归集的账号文本
-│   └── latest.json            # 最新一条账号 JSON
-└── unique_names.txt           # 已使用的随机字母库（自动创建）
+└── output/                    # 账号输出目录（自动创建）
+    ├── 20260529.txt           # 按日期归集的账号文本
+    └── latest.json            # 最新一条账号 JSON
 ```
 
 > `output/` 和 `unique_names.txt` 由程序自动生成，无需手动创建。
@@ -361,6 +389,10 @@ git push origin v1.0.0
 **Q：如何修改邮箱后缀或密码前缀？**
 
 目前为编译时常量，需修改源码中 `emailSuffix` 和 `passwordPre` 后重新编译。
+
+**Q：为什么 JSON 中有一个 `placeholder:用户名` 字段？**
+
+这是一个特殊的字段键名，某些业务系统通过该键名识别邮箱用户名部分。值为 `email` 字段中 `@` 符号之前的内容。
 
 **Q：生成的账号有什么实际用途？**
 

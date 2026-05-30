@@ -123,19 +123,19 @@ func generateContent() (string, map[string]string, error) {
 		userPre, userPre, email, emailUsername, username, password, numStr)
 
 	account := map[string]string{
-		"name":           userPre,
-		"firstName":      userPre,
-		"first_name":     userPre,
-		"lastName":       userPre,
-		"last_name":      userPre,
-		"email":          email,
-		"email_username": emailUsername,
-		"username":       username,
-		"password":       password,
-		"phone":          numStr,
-		"mobile_number":  numStr,
-		"created_at":     createdAt,
-		"display":        displayText,
+		"name":            userPre,
+		"firstName":       userPre,
+		"first_name":      userPre,
+		"lastName":        userPre,
+		"last_name":       userPre,
+		"email":           email,
+		"placeholder:用户名": emailUsername,
+		"username":        username,
+		"password":        password,
+		"phone":           numStr,
+		"mobile_number":   numStr,
+		"created_at":      createdAt,
+		"display":         displayText,
 	}
 
 	return content, account, nil
@@ -764,7 +764,7 @@ const fields = [
   { key: "first_name", label: "姓" },
   { key: "last_name", label: "名" },
   { key: "email", label: "邮箱", copyPrefix: true },
-  { key: "email_username", label: "邮箱用户名" },
+  { key: "placeholder:用户名", label: "邮箱用户名" },
   { key: "username", label: "用户名" },
   { key: "password", label: "密码" },
   { key: "phone", label: "手机号" },
